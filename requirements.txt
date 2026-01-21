@@ -1,0 +1,9 @@
+opencv-python
+pandas
+pytesseract
+easyocr
+camelot-py[cv]
+Pillow
+pdf2image
+gradio
+numpy
