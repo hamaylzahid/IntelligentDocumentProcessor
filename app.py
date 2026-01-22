@@ -9,7 +9,7 @@ from processor import process_document
 # --------------------------------------------------
 st.set_page_config(
     page_title="Intelligent Document Processor",
-    page_icon=📄,
+    page_icon=None,
     layout="wide",
     initial_sidebar_state="expanded"
 )
