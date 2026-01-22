@@ -1,9 +1,10 @@
-opencv-python
+streamlit
 pandas
+numpy
+opencv-python-headless
 pytesseract
 easyocr
 camelot-py[cv]
-Pillow
 pdf2image
+Pillow
 gradio
-numpy
