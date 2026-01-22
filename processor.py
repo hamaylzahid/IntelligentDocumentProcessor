@@ -1,5 +1,5 @@
 # ============================================================
-processor.py
+
 # Intelligent Document Image Processing System (Streamlit-ready)
 # ============================================================
 
