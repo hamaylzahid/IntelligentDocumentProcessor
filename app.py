@@ -74,34 +74,39 @@ uploaded_file = st.file_uploader(
 # Document Processing
 # --------------------------------------------------
 if uploaded_file:
-    with tempfile.NamedTemporaryFile(delete=False) as tmp:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=uploaded_file.name) as tmp:
         tmp.write(uploaded_file.read())
         file_path = tmp.name
 
     with st.spinner("Processing document..."):
-        results = process_document(file_path)
+        output = process_document(file_path)
+
+    pages = output["pages"]
+    tables = output["tables"]
 
     st.success("Document processed successfully")
 
     # --------------------------------------------------
-    # Metrics Overview
+    # Metrics
     # --------------------------------------------------
     col1, col2, col3 = st.columns(3)
 
     with col1:
         st.markdown(
-            f"<div class='metric-box'><h3>{len(results)}</h3><p>Pages Processed</p></div>",
+            f"<div class='metric-box'><h3>{len(pages)}</h3><p>Pages Processed</p></div>",
             unsafe_allow_html=True
         )
 
-    total_paragraphs = sum(len(p["cleaned_paragraphs"]) for p in results)
+    total_paragraphs = sum(len(p["cleaned_paragraphs"]) for p in pages)
     with col2:
         st.markdown(
             f"<div class='metric-box'><h3>{total_paragraphs}</h3><p>Clean Paragraphs</p></div>",
             unsafe_allow_html=True
         )
 
-    total_contacts = sum(len(v) for p in results for v in p["contacts"].values())
+    total_contacts = sum(
+        len(v) for p in pages for v in p["contacts"].values()
+    )
     with col3:
         st.markdown(
             f"<div class='metric-box'><h3>{total_contacts}</h3><p>Detected Contacts</p></div>",
@@ -113,7 +118,7 @@ if uploaded_file:
     # --------------------------------------------------
     # Page-wise Results
     # --------------------------------------------------
-    for idx, page in enumerate(results):
+    for idx, page in enumerate(pages):
         st.markdown(f"## Page {idx + 1}")
 
         with st.expander("Raw Extracted Text"):
@@ -130,16 +135,13 @@ if uploaded_file:
         st.divider()
 
     # --------------------------------------------------
-    # Download Structured Output
+    # Export (NO FILE READ, MEMORY SAFE)
     # --------------------------------------------------
     st.markdown("### Export Results")
 
-    with open("outputs/output.json") as f:
-        json_data = f.read()
-
     st.download_button(
         label="Download Structured JSON",
-        data=json_data,
+        data=json.dumps(output, indent=4),
         file_name="intelligent_document_output.json",
         mime="application/json"
     )
