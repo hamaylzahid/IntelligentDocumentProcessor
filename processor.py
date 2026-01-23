@@ -158,63 +158,46 @@ def extract_contact_info(text):
     return {"urls": urls, "emails": emails, "phones": phones, "categories": categories}
 
 # -------------------------------
-# Full Pipeline
+#  MAIN PIPELINE (FIXED)
 # -------------------------------
 def process_document(file_path):
-    """
-    Main function to process a document.
-    Returns a list of pages compatible with app.py
-    """
-    if not file_path.lower().endswith((".pdf", ".pptx", ".png", ".jpg", ".jpeg")):
-        return []
-
-    # Load images from PDF, PPTX, or image
     image_paths = load_images(file_path)
-    results = {"pages": [], "tables": extract_tables_from_pdf(file_path)}
+
+    results = {
+        "pages": [],
+        "tables": extract_tables_from_pdf(file_path)
+    }
 
     for img_path in image_paths:
-        processed_img = preprocess_image(img_path)
-        easy_text = extract_easyocr_text(img_path)
-        tess_text = extract_tesseract_text(processed_img)
-        handwritten_text = extract_handwritten_text(processed_img)
-        combined_text = "\n".join([easy_text, tess_text, handwritten_text]).strip()
-        multicol_texts = detect_multicolumn_text(img_path)
+        processed = preprocess_image(img_path)
 
-        # Clean & structured
-        paragraphs = clean_paragraphs(split_into_paragraphs(combined_text))
-        headings = clean_headings(detect_headings(combined_text))
-        columns = clean_columns(multicol_texts, paragraphs)
-        doc_type = detect_document_type(combined_text)
-        key_values = extract_key_values(combined_text) if doc_type == "form" else {}
-        contact_info = extract_contact_info(combined_text)
+        text = "\n".join([
+            extract_easyocr_text(img_path),
+            extract_tesseract_text(processed),
+            extract_handwritten_text(processed)
+        ]).strip()
+
+        paragraphs = clean_paragraphs(split_into_paragraphs(text))
+        headings = clean_headings(detect_headings(text))
+        columns = clean_columns(detect_multicolumn_text(img_path), paragraphs)
+
+        doc_type = detect_document_type(text)
+        key_values = extract_key_values(text) if doc_type == "form" else {}
 
         results["pages"].append({
             "document_type": doc_type,
             "headings": headings,
-            "paragraphs": paragraphs,
+            "cleaned_paragraphs": paragraphs,  # 🔥 renamed to match app.py
             "columns": columns,
             "key_value_pairs": key_values,
-            "contacts": contact_info,
-            "text": combined_text
+            "contacts": extract_contact_info(text),
+            "text": text
         })
 
-    # Save JSON for download
-    os.makedirs("outputs", exist_ok=True)
-    json_path = "outputs/output.json"
-    with open(json_path, "w", encoding="utf-8") as f:
+    # Optional disk export (safe)
+    with open(os.path.join(OUTPUT_DIR, "output.json"), "w", encoding="utf-8") as f:
         json.dump(results, f, indent=4)
 
-    # Build the list compatible with app.py
-    pages_list = []
-    for page in results["pages"]:
-        pages_list.append({
-            "text": page["text"],
-            "cleaned_paragraphs": page["paragraphs"],
-            "contacts": page["contacts"],
-            "headings": page["headings"],
-            "columns": page["columns"],
-            "key_value_pairs": page["key_value_pairs"]
-        })
+    return results
 
-    return pages_list
 
