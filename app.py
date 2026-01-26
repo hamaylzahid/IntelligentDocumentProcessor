@@ -58,10 +58,10 @@ if uploaded_file and st.button("🚀 Process Document", use_container_width=True
 
     with st.spinner("Analyzing document..."):
         # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False) as tmp:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
             tmp.write(uploaded_file.read())
-            tmp.name = uploaded_file.name
-            temp_file = tmp
+            temp_path = tmp.name  # REAL path on disk
+            
 
         result = process_document(temp_file, keywords_text)
 
