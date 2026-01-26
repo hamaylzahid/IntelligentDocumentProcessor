@@ -8,7 +8,7 @@ Original file is located at
 """
 
 # ============================================================
-# Intelligent Document Understanding System (FAST + FULL OUTPUT)
+# Intelligent Document Understanding System 
 # ============================================================
 
 import os, re, json, warnings
@@ -201,15 +201,3 @@ def process_document(file, keywords_text):
     except Exception as e:
         return {"error": str(e)}
 
-# -------------------------------
-# Gradio UI
-# -------------------------------
-iface = gr.Interface(
-    fn=process_document,
-    inputs=[gr.File(label="Upload PDF/Image"), gr.Textbox(label="Keywords (comma-separated)")],
-    outputs=gr.JSON(label="Structured Output"),
-    title="Intelligent Document Understanding System",
-    description="Fast, CPU-friendly, keyword-driven, layout-aware document processing system"
-)
-
-iface.launch()
