@@ -1,3 +1,7 @@
+# ============================================================
+# Intelligent Document Understanding System 
+# ============================================================
+
 import os, re, json, warnings
 import cv2
 import numpy as np
@@ -6,47 +10,51 @@ from pdf2image import convert_from_path
 import pytesseract
 import easyocr
 import camelot
+import gradio as gr
 
 warnings.filterwarnings("ignore")
 
+# -------------------------------
+# Setup
+# -------------------------------
 OUTPUT_DIR = "outputs"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Users\PMYLS\Downloads\tesseract-ocr-w64-setup-5.5.0.20241111.exe"
+# Tesseract path (for Colab, you may need to install tesseract)
+pytesseract.pytesseract.tesseract_cmd = "/usr/bin/tesseract"
 
-# -------------------------------
-# Preload EasyOCR reader (once)
-# -------------------------------
-OCR_LANGUAGES = ["en"]
+# Lazy-loaded EasyOCR
 ocr_reader = None
 def get_ocr_reader():
     global ocr_reader
     if ocr_reader is None:
-        # Preload models without downloading during user processing
-        ocr_reader = easyocr.Reader(OCR_LANGUAGES, gpu=False, download_enabled=False)
+        ocr_reader = easyocr.Reader(["en"], gpu=False)
     return ocr_reader
 
 # -------------------------------
 # File Loading
 # -------------------------------
 def load_images(file):
+    path = file.name
     images = []
-    if file.lower().endswith(".pdf"):
-        pages = convert_from_path(file, dpi=200)
+
+    if path.lower().endswith(".pdf"):
+        pages = convert_from_path(path, dpi=200)
         for page in pages:
             images.append(cv2.cvtColor(np.array(page), cv2.COLOR_RGB2BGR))
-    elif file.lower().endswith((".png", ".jpg", ".jpeg")):
-        images.append(cv2.imread(file))
+    elif path.lower().endswith((".png", ".jpg", ".jpeg")):
+        images.append(cv2.imread(path))
     else:
         raise ValueError("Unsupported file type")
-    return images, file
+
+    return images, path
 
 # -------------------------------
-# Preprocessing
+# Image Preprocessing (Minimal)
 # -------------------------------
 def preprocess_for_tesseract(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    return gray
+    return gray  # minimal preprocessing for speed
 
 def preprocess_for_easyocr(img):
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -56,27 +64,28 @@ def preprocess_for_easyocr(img):
     )
 
 # -------------------------------
-# OCR Extraction
+# OCR Extraction (Smart)
 # -------------------------------
 def extract_text(img):
-    # Try Tesseract first
+    # First try Tesseract (fast)
     try:
         text = pytesseract.image_to_string(preprocess_for_tesseract(img), config="--oem 1 --psm 6")
     except:
         text = ""
 
-    # Fallback to EasyOCR if Tesseract fails or too short
+    # If Tesseract fails or text is too short, fallback to EasyOCR
     if len(text.strip()) < 40:
         reader = get_ocr_reader()
         processed_img = preprocess_for_easyocr(img)
         text = "\n".join(reader.readtext(processed_img, detail=0))
+
     return normalize_text(text)
 
 def normalize_text(text):
     return re.sub(r"\s+", " ", text).strip()
 
 # -------------------------------
-# Structuring & Extraction
+# Text Structuring
 # -------------------------------
 def split_paragraphs(text, max_len=250):
     sentences = re.split(r"(?<=[.!?])\s+", text)
@@ -94,6 +103,9 @@ def detect_headings(text):
     lines = text.split(". ")
     return [l.strip() for l in lines if 5 < len(l) < 80 and l[0].isupper() and not l.endswith(".")]
 
+# -------------------------------
+# Key-Value & Contact Extraction
+# -------------------------------
 def extract_key_values(text):
     kv = {}
     for line in text.split("\n"):
@@ -109,15 +121,27 @@ def extract_contacts(text):
         "urls": re.findall(r'https?://\S+', text)
     }
 
+# -------------------------------
+# Table Extraction
+# -------------------------------
 def extract_tables(pdf_path, text):
-    if not pdf_path.lower().endswith(".pdf") or not any(k in text.lower() for k in ["table", "total", "amount", "price"]):
+    if not pdf_path.lower().endswith(".pdf"):
         return []
+
+    if not any(k in text.lower() for k in ["table", "total", "amount", "price"]):
+        return []
+
     tables = camelot.read_pdf(pdf_path, pages="all", flavor="stream")
     result = []
     for i, table in enumerate(tables):
+        csv_path = f"{OUTPUT_DIR}/table_{i}.csv"
+        table.df.to_csv(csv_path, index=False)
         result.append(table.df.to_dict(orient="records"))
     return result
 
+# -------------------------------
+# Keyword-Based Abstract
+# -------------------------------
 def build_abstract(text, keywords):
     sentences = re.split(r"(?<=[.!?])\s+", text)
     matched = [s for s in sentences if any(k.lower() in s.lower() for k in keywords)]
@@ -135,8 +159,10 @@ def process_document(file, keywords_text):
     try:
         keywords = [k.strip() for k in keywords_text.split(",") if k.strip()]
         images, path = load_images(file)
+
         pages_data = []
         full_text = ""
+
         for i, img in enumerate(images, start=1):
             text = extract_text(img)
             full_text += text + " "
@@ -165,5 +191,21 @@ def process_document(file, keywords_text):
 
     except Exception as e:
         return {"error": str(e)}
+
+
+# -------------------------------
+# Gradio UI
+# -------------------------------
+iface = gr.Interface(
+    fn=process_document,
+    inputs=[gr.File(label="Upload PDF/Image"), gr.Textbox(label="Keywords (comma-separated)")],
+    outputs=gr.JSON(label="Structured Output"),
+    title="Intelligent Document Understanding System",
+    description="Fast, CPU-friendly, keyword-driven, layout-aware document processing system"
+)
+
+iface.launch()
+
+
 
 
