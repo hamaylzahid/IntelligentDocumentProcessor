@@ -44,7 +44,7 @@ def get_ocr_reader():
 # File Loading
 # -------------------------------
 def load_images(file):
-    path = file.name
+    path = file
     images = []
 
     if path.lower().endswith(".pdf"):
