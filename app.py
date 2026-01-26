@@ -1,131 +1,105 @@
-import streamlit as st
-import json
-import tempfile
-from document_processor import process_document  # adjust filename if needed
+# ============================================================
+# Streamlit App for Intelligent Document Understanding System
+# ============================================================
 
-# --------------------------------------------------
+import streamlit as st
+import tempfile, os, json
+from document_processor import process_document  # Your backend logic
+
+# -------------------------------
 # Page Config
-# --------------------------------------------------
+# -------------------------------
 st.set_page_config(
-    page_title="Intelligent Document Understanding",
-    page_icon=None,
+    page_title="Intelligent Document Processor",
+    page_icon="📄",
     layout="wide"
 )
 
-# --------------------------------------------------
-# Header
-# --------------------------------------------------
 st.title("📄 Intelligent Document Understanding System")
 st.markdown(
     """
-    Fast, CPU-friendly, keyword-driven document intelligence system  
-    **Supports PDFs and Images | OCR + Tables + Structured Output**
-    """
+Fast, CPU-friendly, keyword-driven, layout-aware document processing system.
+Upload a PDF or image, provide keywords, and get structured insights!
+"""
 )
 
-st.divider()
-
-# --------------------------------------------------
-# Sidebar
-# --------------------------------------------------
-with st.sidebar:
-    st.header("⚙️ Configuration")
-    keywords_text = st.text_input(
-        "Keywords (comma-separated)",
-        placeholder="invoice, total, amount, date"
-    )
-    st.markdown(
-        """
-        **Tips**
-        - Use meaningful keywords  
-        - PDF works best for tables  
-        - Images should be clear
-        """
-    )
-
-# --------------------------------------------------
+# -------------------------------
 # File Upload
-# --------------------------------------------------
+# -------------------------------
 uploaded_file = st.file_uploader(
-    "📤 Upload a document (PDF / PNG / JPG)",
+    "Upload your PDF/Image document",
     type=["pdf", "png", "jpg", "jpeg"]
 )
 
-# --------------------------------------------------
-# Process Button
-# --------------------------------------------------
-if uploaded_file and st.button("🚀 Process Document", use_container_width=True):
+keywords_text = st.text_input(
+    "Enter keywords (comma-separated)",
+    placeholder="e.g., AI, Machine Learning, Resume"
+)
 
-    with st.spinner("Analyzing document..."):
-        # Save uploaded file temporarily
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
-            tmp.write(uploaded_file.read())
-            temp_path = tmp.name  # REAL path on disk
-            
+process_button = st.button("Process Document")
 
-        result = process_document(temp_path, keywords_text)
-
-
-    st.success("✅ Document processed successfully!")
-
-    # --------------------------------------------------
-    # Error Handling
-    # --------------------------------------------------
-    if "error" in result:
-        st.error(result["error"])
-
+# -------------------------------
+# Processing
+# -------------------------------
+if process_button:
+    if uploaded_file is None:
+        st.error("Please upload a PDF or image first!")
     else:
-        # --------------------------------------------------
-        # Abstract Section
-        # --------------------------------------------------
-        st.subheader("🧠 Document Abstract")
-        st.json(result["abstract"])
+        if not keywords_text.strip():
+            st.warning("Consider adding keywords for a better summary.")
 
-        # --------------------------------------------------
-        # Tables Section
-        # --------------------------------------------------
-        st.subheader("📊 Extracted Tables")
+        try:
+            # Save uploaded file to a temporary location
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
+                tmp.write(uploaded_file.read())
+                temp_path = tmp.name  # This is the path we'll pass to backend
 
-        if result["tables"]:
-            for i, table in enumerate(result["tables"], 1):
-                st.markdown(f"**Table {i}**")
-                st.dataframe(table, use_container_width=True)
-        else:
-            st.info("No tables detected.")
+            # Process document
+            with st.spinner("Processing document... This may take a few seconds."):
+                result = process_document(temp_path, keywords_text)
 
-        # --------------------------------------------------
-        # Pages Section
-        # --------------------------------------------------
-        st.subheader("📄 Page-wise Analysis")
+            # Remove temp file to save space
+            os.remove(temp_path)
 
-        for page in result["pages"]:
-            with st.expander(f"Page {page['page']}"):
-                st.markdown("**Headings**")
-                st.write(page["headings"] or "—")
+            # Display results
+            if "error" in result:
+                st.error(f"❌ Error during processing: {result['error']}")
+            else:
+                st.success("✅ Document processed successfully!")
 
-                st.markdown("**Key-Value Pairs**")
-                st.json(page["key_values"] or {})
+                # Abstract / Summary
+                st.subheader("📌 Abstract / Summary")
+                st.json(result.get("abstract", {}), expanded=True)
 
-                st.markdown("**Contacts**")
-                st.json(page["contacts"])
+                # Tables (if any)
+                if result.get("tables"):
+                    st.subheader("📊 Extracted Tables")
+                    for i, table in enumerate(result["tables"], start=1):
+                        st.write(f"Table {i}")
+                        st.json(table, expanded=False)
 
-                st.markdown("**Paragraphs**")
-                for p in page["paragraphs"]:
-                    st.write("•", p)
+                # Page-wise details
+                st.subheader("📝 Page-wise Content")
+                for page in result.get("pages", []):
+                    st.markdown(f"### Page {page['page']}")
+                    st.markdown("**Headings:**")
+                    st.write(page.get("headings", []))
+                    st.markdown("**Paragraphs:**")
+                    st.write(page.get("paragraphs", []))
+                    st.markdown("**Key-Value Pairs:**")
+                    st.write(page.get("key_values", {}))
+                    st.markdown("**Contacts:**")
+                    st.write(page.get("contacts", {}))
 
-        # --------------------------------------------------
-        # Download Output
-        # --------------------------------------------------
-        st.divider()
-        st.download_button(
-            label="⬇️ Download Full JSON Output",
-            data=json.dumps(result, indent=4),
-            file_name="document_output.json",
-            mime="application/json"
-        )
+                # Download structured JSON
+                st.subheader("💾 Download Output")
+                json_data = json.dumps(result, indent=4)
+                st.download_button(
+                    label="Download JSON",
+                    data=json_data,
+                    file_name="document_output.json",
+                    mime="application/json"
+                )
 
-# --------------------------------------------------
-# Footer
-# --------------------------------------------------
-st.divider()
-st.caption("Built with Streamlit • OCR • NLP • Document Intelligence")
+        except Exception as e:
+            st.error(f"⚠️ Unexpected error: {str(e)}")
