@@ -29,19 +29,23 @@ Upload a PDF or image, provide keywords, and get structured insights!
 # -------------------------------
 # OCR Fallback Actor
 # -------------------------------
+# -------------------------------
+# OCR Fallback Actor
+# -------------------------------
 def ocr_actor(file, actor_type="easyocr"):
     try:
         if actor_type == "easyocr":
-            import easyocr
-            reader = easyocr.Reader(['en'], gpu=False, download_enabled=False)
+            from document_processor import get_ocr_reader
+            reader = get_ocr_reader()  # Uses preloaded model
             st.info("Using EasyOCR...")
             result = []
-            for i, (bbox, text, prob) in enumerate(reader.readtext(file.read(), detail=1)):
+            image = Image.open(file)
+            processed_img = np.array(image)
+            for i, text in enumerate(reader.readtext(processed_img, detail=0)):
                 result.append(text)
                 st.write(f"Line {i+1}: {text}")
-                time.sleep(0.05)  # streaming effect
             return "\n".join(result)
-        
+
         elif actor_type == "pytesseract":
             st.info("Using pytesseract as fallback...")
             image = Image.open(file)
@@ -59,6 +63,7 @@ def ocr_actor(file, actor_type="easyocr"):
             return ocr_actor(file, actor_type="pytesseract")
         else:
             return "All OCR actors failed!"
+
 
 # -------------------------------
 # File Upload
