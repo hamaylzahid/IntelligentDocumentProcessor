@@ -1,11 +1,9 @@
 streamlit
-pandas
-numpy
 opencv-python-headless
+numpy
+pandas
 pytesseract
 easyocr
-camelot-py[cv]
 pdf2image
+camelot-py
 Pillow
-gradio
-poppler-utils
