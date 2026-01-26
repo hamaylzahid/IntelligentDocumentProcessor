@@ -63,7 +63,8 @@ if uploaded_file and st.button("🚀 Process Document", use_container_width=True
             temp_path = tmp.name  # REAL path on disk
             
 
-        result = process_document(temp_file, keywords_text)
+        result = process_document(temp_path, keywords_text)
+
 
     st.success("✅ Document processed successfully!")
 
