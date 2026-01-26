@@ -5,6 +5,9 @@
 import streamlit as st
 import tempfile, os, json
 from document_processor import process_document  # Your backend logic
+from PIL import Image
+import pytesseract
+import time
 
 # -------------------------------
 # Page Config
@@ -22,6 +25,40 @@ Fast, CPU-friendly, keyword-driven, layout-aware document processing system.
 Upload a PDF or image, provide keywords, and get structured insights!
 """
 )
+
+# -------------------------------
+# OCR Fallback Actor
+# -------------------------------
+def ocr_actor(file, actor_type="easyocr"):
+    try:
+        if actor_type == "easyocr":
+            import easyocr
+            reader = easyocr.Reader(['en'], gpu=False, download_enabled=False)
+            st.info("Using EasyOCR...")
+            result = []
+            for i, (bbox, text, prob) in enumerate(reader.readtext(file.read(), detail=1)):
+                result.append(text)
+                st.write(f"Line {i+1}: {text}")
+                time.sleep(0.05)  # streaming effect
+            return "\n".join(result)
+        
+        elif actor_type == "pytesseract":
+            st.info("Using pytesseract as fallback...")
+            image = Image.open(file)
+            text = pytesseract.image_to_string(image)
+            st.write(text)
+            return text
+
+        else:
+            st.warning(f"Actor {actor_type} not supported. Using fallback.")
+            return ocr_actor(file, actor_type="pytesseract")
+
+    except Exception as e:
+        st.error(f"Actor {actor_type} crashed: {e}")
+        if actor_type != "pytesseract":
+            return ocr_actor(file, actor_type="pytesseract")
+        else:
+            return "All OCR actors failed!"
 
 # -------------------------------
 # File Upload
@@ -52,13 +89,19 @@ if process_button:
             # Save uploaded file to a temporary location
             with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{uploaded_file.name}") as tmp:
                 tmp.write(uploaded_file.read())
-                temp_path = tmp.name  # This is the path we'll pass to backend
+                temp_path = tmp.name
 
-            # Process document
+            # For images, run streaming OCR before full backend processing
+            if uploaded_file.type.startswith("image/"):
+                st.subheader("🔍 OCR Preview (Streaming)")
+                with open(temp_path, "rb") as f:
+                    ocr_text = ocr_actor(f)
+                st.text_area("Detected Text", ocr_text, height=250)
+
+            # Process document using backend
             with st.spinner("Processing document... This may take a few seconds."):
                 result = process_document(temp_path, keywords_text)
 
-            # Remove temp file to save space
             os.remove(temp_path)
 
             # Display results
@@ -67,18 +110,15 @@ if process_button:
             else:
                 st.success("✅ Document processed successfully!")
 
-                # Abstract / Summary
                 st.subheader("📌 Abstract / Summary")
                 st.json(result.get("abstract", {}), expanded=True)
 
-                # Tables (if any)
                 if result.get("tables"):
                     st.subheader("📊 Extracted Tables")
                     for i, table in enumerate(result["tables"], start=1):
                         st.write(f"Table {i}")
                         st.json(table, expanded=False)
 
-                # Page-wise details
                 st.subheader("📝 Page-wise Content")
                 for page in result.get("pages", []):
                     st.markdown(f"### Page {page['page']}")
@@ -91,7 +131,6 @@ if process_button:
                     st.markdown("**Contacts:**")
                     st.write(page.get("contacts", {}))
 
-                # Download structured JSON
                 st.subheader("💾 Download Output")
                 json_data = json.dumps(result, indent=4)
                 st.download_button(
@@ -103,3 +142,4 @@ if process_button:
 
         except Exception as e:
             st.error(f"⚠️ Unexpected error: {str(e)}")
+
